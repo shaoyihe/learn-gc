@@ -1,18 +1,23 @@
 package gc;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
  * mark - compact
  * on 2017/3/6.
  */
-public class MarkAndCompactGc {
+public class CopingGc {
     /**
      * （模拟）总内存
      */
     private final byte[] stores;
 
+    /**
+     * 当前块
+     */
+    private byte curBlock = 0;
     /**
      * 空闲偏差，剩余块一直是一个完整的数据块
      */
@@ -22,7 +27,7 @@ public class MarkAndCompactGc {
      */
     private Set<Integer> roots = new HashSet<>();
 
-    public MarkAndCompactGc(int initSize) {
+    public CopingGc(int initSize) {
         this.stores = new byte[initSize];
     }
 
@@ -30,12 +35,13 @@ public class MarkAndCompactGc {
      * @return (模拟)内存地址
      */
     public int put(int val) {
-        MarkData<Integer> data = new MarkData<>(DataType.INTEGER, val);
+        Data<Integer> data = new Data<>(DataType.INTEGER, val);
         return put(data);
     }
 
     /**
      * 从roots移除地址
+     *
      * @return
      */
     public boolean removeFromRoot(int address) {
@@ -61,7 +67,7 @@ public class MarkAndCompactGc {
      * @param data
      * @return
      */
-    private int put(MarkData data) {
+    private int put(Data data) {
         if (emptySize() < data.getSize()) {
             gc();
         }
@@ -77,7 +83,7 @@ public class MarkAndCompactGc {
      * @param data
      * @return
      */
-    private int putInner(MarkData data) {
+    private int putInner(Data data) {
         int from = emptyOffset;
         //写入root
         roots.add(from);
@@ -87,7 +93,7 @@ public class MarkAndCompactGc {
         return from;
     }
 
-    private void writeTo(MarkData data, int from) {
+    private void writeTo(Data data, int from) {
         System.arraycopy(data.getBytes(), 0, stores, from, data.getSize());
     }
 
@@ -95,50 +101,33 @@ public class MarkAndCompactGc {
      * 分配内存
      */
     private void gc() {
-        mark();
-        compact();
-    }
-
-    /**
-     * 标记（此处没有递归引用，只做标记）
-     */
-    private void mark() {
-        for (int from : roots) {
-            MarkData.mark(stores, from);
-        }
+        copy();
     }
 
     /**
      * 清除压缩
      */
-    private void compact() {
-        //上次空闲起点
-        int lastEmptyStart = 0;
-        for (int dataOffset = 0; dataOffset < this.emptyOffset; ) {
-            //object
-            int objSize = MarkData.size(stores, dataOffset);
-            if (MarkData.isMarked(stores, dataOffset)) {
-                MarkData.unMark(stores, dataOffset);
-                //如果数据块左边有空块，则移动之
-                if (dataOffset > lastEmptyStart) {
-                    //重写roots
-                    roots.remove(dataOffset);
-                    roots.add(lastEmptyStart);
-                    System.arraycopy(stores, dataOffset, stores, lastEmptyStart, objSize);
-                }
-                lastEmptyStart += objSize;
-            }
-            dataOffset += objSize;
+    private void copy() {
+        curBlock ^= 1;
+        int tempEmptyOffset = curBlock == 0 ? 0 : stores.length / 2;
+        Set<Integer> tempRoots = new HashSet<>();
+        for (int root : roots) {
+            tempRoots.add(tempEmptyOffset);
+            int size = Data.size(stores, root);
+            System.arraycopy(stores, root, stores, tempEmptyOffset, size);
+            tempEmptyOffset += size;
         }
-        this.emptyOffset = lastEmptyStart;
+        emptyOffset = tempEmptyOffset;
+        roots = tempRoots;
     }
 
     /**
      * 空余尺寸
+     *
      * @return
      */
     private int emptySize() {
-        return stores.length - emptyOffset;
+        return curBlock == 0 ? stores.length / 2 - emptyOffset : stores.length - emptyOffset;
     }
 
 }

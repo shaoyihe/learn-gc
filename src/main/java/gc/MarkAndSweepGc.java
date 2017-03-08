@@ -35,7 +35,7 @@ public class MarkAndSweepGc {
      * @return (模拟)内存地址
      */
     public int put(int val) {
-        Data<Integer> data = new Data<>(DataType.INTEGER, val);
+        MarkData<Integer> data = new MarkData<>(DataType.INTEGER, val);
         return put(data);
     }
 
@@ -50,14 +50,14 @@ public class MarkAndSweepGc {
      * @return 内存地址
      */
     public int put(long val) {
-        Data<Long> data = new Data<>(DataType.LONG, val);
+        MarkData<Long> data = new MarkData<>(DataType.LONG, val);
         return put(data);
     }
 
     public Set getVals() {
         //实际为递归调用
         return roots.stream().map((root) -> {
-            return Data.getData(stores, root).getVal();
+            return MarkData.getData(stores, root).getVal();
         }).collect(Collectors.toSet());
     }
 
@@ -65,7 +65,7 @@ public class MarkAndSweepGc {
      * @param data
      * @return
      */
-    private int put(Data data) {
+    private int put(MarkData data) {
         if (emptySize < data.getSize()) {
             gc();
         }
@@ -90,7 +90,7 @@ public class MarkAndSweepGc {
      * @param data
      * @return
      */
-    private int putInner(Data data) {
+    private int putInner(MarkData data) {
         for (Block block : emptyList) {
             if (block.size >= data.getSize()) {
                 int from = block.from;
@@ -107,7 +107,7 @@ public class MarkAndSweepGc {
         return -1;
     }
 
-    private void writeTo(Data data, int from) {
+    private void writeTo(MarkData data, int from) {
         System.arraycopy(data.getBytes(), 0, stores, from, data.getSize());
     }
 
@@ -124,7 +124,7 @@ public class MarkAndSweepGc {
      */
     private void mark() {
         for (int from : roots) {
-            Data.mark(stores, from);
+            MarkData.mark(stores, from);
         }
     }
 
@@ -150,9 +150,9 @@ public class MarkAndSweepGc {
             }
 
             //object
-            int objSize = Data.size(stores, offset);
-            if (Data.isMarked(stores, offset)) {
-                Data.unMark(stores, offset);
+            int objSize = MarkData.size(stores, offset);
+            if (MarkData.isMarked(stores, offset)) {
+                MarkData.unMark(stores, offset);
             } else {
                 //未被标记的块放入空闲列表中
                 newEmptyList.add(new Block(offset, objSize));

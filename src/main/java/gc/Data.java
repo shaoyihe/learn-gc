@@ -1,10 +1,9 @@
 package gc;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 /**
- * on 2017/3/6.
+ * on 2017/3/8.
  */
 public class Data<T> {
 
@@ -12,12 +11,7 @@ public class Data<T> {
     /**
      * 当前data总长度
      */
-    private int size;
-    /**
-     * 是否被标记
-     * 0 false , 1 true
-     */
-    private byte marked = 0;
+    protected int size;
 
     // body
     /**
@@ -33,16 +27,14 @@ public class Data<T> {
     public Data(DataType type, T val) {
         this.type = type;
         this.val = val;
-        this.size = Integer.BYTES + Byte.BYTES + Integer.BYTES + type.size();
+        this.size = Integer.BYTES + Integer.BYTES + type.size();
     }
+
 
     public int getSize() {
         return size;
     }
 
-    public byte getMarked() {
-        return marked;
-    }
 
     public DataType getType() {
         return type;
@@ -57,7 +49,6 @@ public class Data<T> {
     public byte[] getBytes() {
         ByteBuffer buffer = ByteBuffer.allocate(this.size);
         buffer.putInt(size);
-        buffer.put(marked);
         buffer.putInt(type.getType());
         if (type == DataType.INTEGER) {
             buffer.putInt((Integer) val);
@@ -73,10 +64,10 @@ public class Data<T> {
      * @param tar
      * @param from
      */
-    public static void mark(byte[] tar, int from) {
-        //offset this.size 大小
-        tar[Integer.BYTES + from] = 1;
+    public static int size(byte[] tar, int from) {
+        return ByteBuffer.wrap(tar, from, Integer.BYTES).getInt();
     }
+
 
     /**
      * mark字段
@@ -85,10 +76,8 @@ public class Data<T> {
      * @param from
      */
     public static Data getData(byte[] tar, int from) {
-        int size = Data.size(tar, from);
-        ByteBuffer buffer = ByteBuffer.wrap(Arrays.copyOfRange(tar, from, from + size));
-        size = buffer.getInt();
-        byte marked = buffer.get();
+        ByteBuffer buffer = ByteBuffer.wrap(tar, from, size(tar, from));
+        int size = buffer.getInt();
         DataType type = DataType.fromType(buffer.getInt());
         if (type == DataType.INTEGER) {
             return new Data<Integer>(type, buffer.getInt());
@@ -97,35 +86,4 @@ public class Data<T> {
         }
     }
 
-    /**
-     * mark字段
-     *
-     * @param tar
-     * @param from
-     */
-    public static void unMark(byte[] tar, int from) {
-        //offset this.size 大小
-        tar[Integer.BYTES + from] = 0;
-    }
-
-    /**
-     * mark字段
-     *
-     * @param tar
-     * @param from
-     */
-    public static int size(byte[] tar, int from) {
-        return ByteBuffer.wrap(Arrays.copyOfRange(tar, from, from + Integer.BYTES)).getInt();
-    }
-
-    /**
-     * 是否被标记
-     *
-     * @param tar
-     * @param from
-     */
-    public static boolean isMarked(byte[] tar, int from) {
-        //offset this.size 大小
-        return tar[Integer.BYTES + from] == 1;
-    }
 }
